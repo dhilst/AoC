@@ -46,19 +46,20 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
  }
 
 template <typename T>
-T pop(std::vector<T>& v) {
+T pop(std::span<const T>& v) {
     assert(v.size() > 0);
     auto t = v.front();
-    v.erase(v.begin());
+    v = std::span(v.data() + 1, v.size() - 1);
     return t;
 }
 
 TEST(BasicTests, Pop)
 {
-    auto v = std::vector{1,2,3};
-    ASSERT_EQ(pop<int>(v), 1);
-    ASSERT_EQ(pop<int>(v), 2);
-    ASSERT_EQ(pop<int>(v), 3);
+    const auto v = std::vector{1,2,3};
+    auto span = std::span(v);
+    ASSERT_EQ(pop(span), 1);
+    ASSERT_EQ(pop(span), 2);
+    ASSERT_EQ(pop(span), 3);
 }
 
 template <typename T = std::uint64_t>
@@ -107,7 +108,7 @@ TEST(BasicTests, isIn)
     ASSERT_EQ(isIn(4, v), false);
 }
 
-void compute(std::uint64_t acc, std::vector<std::uint64_t>& rest, std::vector<std::uint64_t>& output)
+void compute(std::uint64_t acc, std::span<const std::uint64_t> rest, std::vector<std::uint64_t>& output)
 {
     //std::cout << "Computing " << acc << " " << rest << std::endl;
     if (rest.empty()) {
@@ -115,32 +116,31 @@ void compute(std::uint64_t acc, std::vector<std::uint64_t>& rest, std::vector<st
         return;
     }
 
-    auto copy = std::vector(rest); // copy
-    std::uint64_t v = pop(copy);
-    compute(acc + v, copy, output);
-    compute(acc * v, copy, output);
-    compute(concat(acc, v), copy, output);
+    std::uint64_t v = pop(rest);
+    compute(acc + v, rest, output);
+    compute(acc * v, rest, output);
+    compute(concat(acc, v), rest, output);
 }
 
-auto compute(std::vector<std::uint64_t>& rest) -> decltype(auto)
+auto compute(const std::vector<std::uint64_t>& rest) -> decltype(auto)
 {
     assert(rest.size() > 0);
-    std::uint64_t v = pop(rest);
-    assert(v > 0);
+    auto span = std::span(rest);
+    std::uint64_t top = pop(span);
+    assert(top > 0);
     std::vector<std::uint64_t> output;
-    compute(v, rest, output);
+    compute(top, span, output);
     return output;
 }
 
 auto compute(const Line& line) -> decltype(auto)
 {
-    auto numbers = line.numbers; // copy
-    if (numbers.size() == 0) {
+    if (line.numbers.size() == 0) {
         std::ostringstream lineos;
         lineos << line;
         throw std::runtime_error(std::format("Line bug? {}", lineos.str()));
     }
-    return compute(numbers);
+    return compute(line.numbers);
 }
 
 bool computeLine(const Line& line)
