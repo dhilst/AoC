@@ -1,24 +1,27 @@
 #include <bitset>
+#include <charconv>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <numeric>
 #include <ostream>
+#include <stdexcept>
 #include <vector>
 #include <sstream>
 #include <fstream>
 #include <cassert>
 #include <ranges>
 
+#include <gtest/gtest.h>
+
 
 template <typename T>
 concept Streamable = requires(const T &s, std::ostream &os) { os << s; };
 
-using HeaderType = std::uint64_t;
-
 struct Line {
-    HeaderType header;
-    std::vector<HeaderType> numbers;
+    std::uint64_t header;
+    std::vector<std::uint64_t> numbers;
 };
 
 std::ostream& operator<<(std::ostream& os, const Line& line)
@@ -50,18 +53,61 @@ T pop(std::vector<T>& v) {
     return t;
 }
 
-bool isIn(auto value, auto& vec) {
+TEST(BasicTests, Pop)
+{
+    auto v = std::vector{1,2,3};
+    ASSERT_EQ(pop<int>(v), 1);
+    ASSERT_EQ(pop<int>(v), 2);
+    ASSERT_EQ(pop<int>(v), 3);
+}
+
+template <typename T = std::uint64_t>
+T to(std::string_view str)
+{
+    T i{};
+    auto [_, ec] = std::from_chars(str.data(), str.data() + str.size(), i);
+    if (ec != std::errc{}) {
+        throw std::invalid_argument("Invalid argument");
+    }
+
+    return i;
+}
+
+TEST(BasicTests, To)
+{
+    ASSERT_EQ(to<int>("10"), 10);
+    ASSERT_EQ(to<int>("20"), 20);
+    ASSERT_EQ(to<int>("0"), 0);
+}
+
+auto concat(auto n1, auto n2) -> decltype(auto)
+{
+    return to(std::format("{}{}", n1, n2));
+}
+
+TEST(BasicTests, Concat)
+{
+    ASSERT_EQ(concat(10, 10), 1010);
+    ASSERT_EQ(concat(concat(1, 2), 3), 123);
+    ASSERT_EQ(concat(3, concat(1, 2)), 312);
+    ASSERT_EQ(concat(0, 1), 1);
+    ASSERT_EQ(concat(1, 0), 10);
+    ASSERT_EQ(concat(0, 0), 0);
+}
+
+bool isIn(auto value, auto& vec)
+{
     return std::find(vec.begin(), vec.end(), value) != vec.end();
 }
 
-inline std::vector<HeaderType> range(size_t n)
+TEST(BasicTests, isIn)
 {
-    std::vector<HeaderType> output(n);
-    std::iota(output.begin(), output.end(), 0);
-    return output;
+    const auto v = std::vector{1,2,3};
+    ASSERT_EQ(isIn(1, v), true);
+    ASSERT_EQ(isIn(4, v), false);
 }
 
-void compute(HeaderType acc, std::vector<HeaderType>& rest, std::vector<HeaderType>& output)
+void compute(std::uint64_t acc, std::vector<std::uint64_t>& rest, std::vector<std::uint64_t>& output)
 {
     //std::cout << "Computing " << acc << " " << rest << std::endl;
     if (rest.empty()) {
@@ -70,17 +116,18 @@ void compute(HeaderType acc, std::vector<HeaderType>& rest, std::vector<HeaderTy
     }
 
     auto copy = std::vector(rest); // copy
-    HeaderType v = pop(copy);
+    std::uint64_t v = pop(copy);
     compute(acc + v, copy, output);
     compute(acc * v, copy, output);
+    compute(concat(acc, v), copy, output);
 }
 
-auto compute(std::vector<HeaderType>& rest) -> decltype(auto)
+auto compute(std::vector<std::uint64_t>& rest) -> decltype(auto)
 {
     assert(rest.size() > 0);
-    HeaderType v = pop(rest);
+    std::uint64_t v = pop(rest);
     assert(v > 0);
-    std::vector<HeaderType> output;
+    std::vector<std::uint64_t> output;
     compute(v, rest, output);
     return output;
 }
@@ -99,8 +146,7 @@ auto compute(const Line& line) -> decltype(auto)
 bool computeLine(const Line& line)
 {
     auto output = compute(line);
-    auto value = isIn(line.header, output);
-    return value;
+    return isIn(line.header, output);
 }
 
 auto parseLine(const auto& line)
@@ -109,7 +155,7 @@ auto parseLine(const auto& line)
     char colon;
     std::istringstream linestream(line);
     linestream >> output.header >> colon;
-    for (HeaderType num; linestream >> num;) {
+    for (std::uint64_t num; linestream >> num;) {
         output.numbers.push_back(num);
     }
     return output;
@@ -155,9 +201,15 @@ auto collect()
 
 int main(int argc, char* argv[])
 {
+    const char* run_tests = std::getenv("RUN_GTEST");
+    if (run_tests != nullptr && std::string(run_tests) != "") {
+        ::testing::InitGoogleTest(&argc, argv);
+        return RUN_ALL_TESTS();
+    }
+
     auto input = readinput(argv[1]);
 
-    HeaderType output = 0;
+    std::uint64_t output = 0;
     for (auto [i, line] : input | enumerate(1) | collect()) {
         if (computeLine(line)) {
             output += line.header;

@@ -20,9 +20,12 @@ if(NOT DEFINED DEBUG_RENDER)
 endif()
 add_compile_definitions(DEBUG_RENDER=${DEBUG_RENDER})
 
+find_package(GTest REQUIRED)
+
 # Create the executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+target_link_libraries(${PROJECT_NAME} gtest::gtest)
 
 # Set include directories
 target_include_directories(${PROJECT_NAME} PUBLIC ${SRC_DIR})
