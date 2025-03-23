@@ -15,7 +15,6 @@
 
 #include <gtest/gtest.h>
 
-
 template <typename T>
 concept Streamable = requires(const T &s, std::ostream &os) { os << s; };
 
@@ -45,6 +44,17 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
     return os;
  }
 
+template <Streamable T>
+std::ostream& operator<<(std::ostream& os, const std::span<T>& vec)
+{
+    os << "std::vector<?>{";
+    for (const auto& i : vec) {
+        os << i << ", ";
+    }
+    os << "}";
+    return os;
+ }
+
 template <typename T>
 T pop(std::span<const T>& v) {
     assert(v.size() > 0);
@@ -63,7 +73,7 @@ TEST(BasicTests, Pop)
 }
 
 template <typename T = std::uint64_t>
-T to(std::string_view str)
+T intFromStr(std::string_view str)
 {
     T i{};
     auto [_, ec] = std::from_chars(str.data(), str.data() + str.size(), i);
@@ -76,14 +86,20 @@ T to(std::string_view str)
 
 TEST(BasicTests, To)
 {
-    ASSERT_EQ(to<int>("10"), 10);
-    ASSERT_EQ(to<int>("20"), 20);
-    ASSERT_EQ(to<int>("0"), 0);
+    ASSERT_EQ(intFromStr("10"), 10);
+    ASSERT_EQ(intFromStr("20"), 20);
+    ASSERT_EQ(intFromStr("0"), 0);
 }
 
 auto concat(auto n1, auto n2) -> decltype(auto)
 {
-    return to(std::format("{}{}", n1, n2));
+    return intFromStr(std::format("{}{}", n1, n2));
+}
+
+constexpr auto concat(auto n1) { return n1; } 
+constexpr auto concat(auto n1, auto n2, auto... rest)
+{
+    return concat(concat(n1, n2), rest...);
 }
 
 TEST(BasicTests, Concat)
@@ -94,6 +110,9 @@ TEST(BasicTests, Concat)
     ASSERT_EQ(concat(0, 1), 1);
     ASSERT_EQ(concat(1, 0), 10);
     ASSERT_EQ(concat(0, 0), 0);
+    ASSERT_EQ(concat(0), 0);
+    ASSERT_EQ(concat(0, 1, 2), 12);
+    ASSERT_EQ(concat(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), 12345678910);
 }
 
 bool isIn(auto value, auto& vec)
@@ -108,45 +127,47 @@ TEST(BasicTests, isIn)
     ASSERT_EQ(isIn(4, v), false);
 }
 
-void compute(std::uint64_t acc, std::span<const std::uint64_t> rest, std::vector<std::uint64_t>& output)
+constexpr bool compute(std::uint64_t header, std::uint64_t acc, std::span<const std::uint64_t> rest, std::uint64_t& output)
 {
-    //std::cout << "Computing " << acc << " " << rest << std::endl;
+    // std::cout << "Computing " << acc << " " << rest << std::endl;
     if (rest.empty()) {
-        output.push_back(acc);
-        return;
+        if (acc == header) {
+            output += acc;
+            // found, skip next
+            return true;
+        }
+        return false;
     }
 
     std::uint64_t v = pop(rest);
-    compute(acc + v, rest, output);
-    compute(acc * v, rest, output);
-    compute(concat(acc, v), rest, output);
+    return compute(header, acc + v, rest, output)
+        || compute(header, acc * v, rest, output)
+        || compute(header, concat(acc, v), rest, output);
 }
 
-auto compute(const std::vector<std::uint64_t>& rest) -> decltype(auto)
+void compute(const std::uint64_t header, const std::vector<std::uint64_t>& rest,
+              std::uint64_t& output)
 {
     assert(rest.size() > 0);
     auto span = std::span(rest);
     std::uint64_t top = pop(span);
     assert(top > 0);
-    std::vector<std::uint64_t> output;
-    compute(top, span, output);
-    return output;
+    compute(header, top, span, output);
 }
 
-auto compute(const Line& line) -> decltype(auto)
+auto compute(const Line& line, std::uint64_t& output)
 {
     if (line.numbers.size() == 0) {
         std::ostringstream lineos;
         lineos << line;
         throw std::runtime_error(std::format("Line bug? {}", lineos.str()));
     }
-    return compute(line.numbers);
+    compute(line.header, line.numbers, output);
 }
 
-bool computeLine(const Line& line)
+void computeLine(const Line& line, std::uint64_t& output)
 {
-    auto output = compute(line);
-    return isIn(line.header, output);
+    compute(line, output);
 }
 
 auto parseLine(const auto& line)
@@ -211,9 +232,7 @@ int main(int argc, char* argv[])
 
     std::uint64_t output = 0;
     for (auto [i, line] : input | enumerate(1) | collect()) {
-        if (computeLine(line)) {
-            output += line.header;
-        }
+        computeLine(line, output);
     }
 
     std::cout << "Output: " << output << std::endl;
