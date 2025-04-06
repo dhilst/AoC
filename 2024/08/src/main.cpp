@@ -37,7 +37,8 @@ std::ostream& operator<<(std::ostream& os, const std::pair<A, B>& pair)
     return os;
  }
 
-using coord = std::pair<std::size_t, std::size_t>;
+using coordT = int;
+using coord = std::pair<coordT, coordT>;
 coord operator-(coord a1, coord a2)
 {
     auto [x1, y1] = a1;
@@ -52,7 +53,7 @@ coord operator+(coord a1, coord a2)
     return std::make_pair(x1 + x2, y1 + y2);
 }
 
-coord operator*(coord c, std::size_t n)
+coord operator*(coord c, coordT n)
 {
     return std::make_pair(c.first * n, c.second * n);
 }
@@ -129,15 +130,22 @@ struct input {
         return get(idx(c.first, c.second));
     }
 
+    static constexpr bool valid(coord c, auto columnSize, auto rowSize)
+    {
+        auto [x, y] = c;
+        return x >= 0 && x < columnSize && y >= 0 && y < rowSize;
+    }
+
     static constexpr auto idx(std::size_t x, std::size_t y, std::size_t rowSize)
     {
         return y + x * rowSize;
     }
 
-    static constexpr auto idx(coord c, std::size_t rowSize)
+    static constexpr auto idx(coord c, auto columnSize, auto rowSize)
     {
+        assert(valid(c, columnSize, rowSize));
         auto [x, y] = c;
-        return idx(x, y, rowSize);
+        return idx(static_cast<std::size_t>(x), static_cast<std::size_t>(y), rowSize);
     }
 
     static auto invidx(auto i, auto rowSize)
@@ -148,12 +156,10 @@ struct input {
         return std::make_pair(x, y);
     }
 
-    bool valid(coord c)
+    bool valid(coord c) const
     {
-        auto [x, y] = c;
-        return x < columnSize && y < rowSize;
+        return valid(c, columnSize, rowSize);
     }
-
 
     std::size_t idx(auto x, auto y) const { return idx(x, y, rowSize); }
     std::size_t idx(coord c) const { return idx(c, rowSize); }
@@ -168,6 +174,7 @@ struct input {
 
     char nth(coord c) const
     {
+        assert(valid(c));
         auto [x, y] = c;
         return nth(x, y);
     }
@@ -229,11 +236,12 @@ struct input {
 };
 
 TEST(BasicTest, InputIndex) {
-    const std::size_t r = 10;
+    const std::size_t rowSize = 10;
+    const std::size_t columnSize = 10;
     auto i = 13;
-    auto c = input::invidx(13, r);
-    constexpr auto idx = [r](auto c){ return input::idx(c, r); };
-    constexpr auto invidx = [r](auto i){ return input::invidx(i, r); };
+    coord c = input::invidx(13, rowSize);
+    constexpr auto idx = [rowSize](coord c) { return input::idx(c, columnSize, rowSize); };
+    constexpr auto invidx = [rowSize](auto i){ return input::invidx(i, rowSize); };
     ASSERT_EQ(idx(c), i);
     ASSERT_EQ(invidx(i), c);
     ASSERT_EQ(invidx(idx(c)), c);
