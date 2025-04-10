@@ -62,8 +62,8 @@ constexpr std::string toString(const std::vector<char>& vec)
 }
 
 constexpr int FREEBLOCK = -1;
-using Block = std::pair<int, std::size_t>; // id | size
-constexpr std::string toString(const std::vector<Block>& vec)
+using File = std::pair<int, std::size_t>; // id | size
+constexpr std::string toString(const std::vector<File>& vec)
 {
     std::ostringstream os;
     for (auto& [id, size] : vec) {
@@ -94,7 +94,7 @@ std::vector<int> diskMapToBlocks(const std::string& input)
     return output;
 }
 
-std::vector<std::pair<int,std::size_t>> diskMapToFiles(const std::string& input)
+std::vector<File> diskMapToFiles(const std::string& input)
 {
     std::vector<std::pair<int, std::size_t>> output;
     for (auto i = 0; i < input.size(); ++i) {
@@ -177,8 +177,8 @@ auto unpackFreeSpaceFile(const std::vector<std::pair<int, std::size_t>>& inputVe
         return -1;
     };
 
-    constexpr auto split = [](const Block& block, const Block& freespace)
-        -> std::pair<Block, Block> {
+    constexpr auto split = [](const File& block, const File& freespace)
+        -> std::pair<File, File> {
             assert(freespace.second >= block.second);
             auto remainingSize = freespace.second - block.second;
             auto leftBlock = std::make_pair(FREEBLOCK, remainingSize);
@@ -241,7 +241,7 @@ std::uint64_t checksum(const std::vector<int>& compactedStr)
     return output;
 }
 
-std::vector<int> fromBlockVec(const std::vector<Block>& vec)
+std::vector<int> fromBlockVec(const std::vector<File>& vec)
 {
     std::vector<int> output;
     for (auto [id, size] : vec) {
