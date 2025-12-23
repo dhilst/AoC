@@ -84,6 +84,7 @@ my @test_input = split /\n/, <<"EOF";
 *   +   *   +  
 EOF
 
+
 sub parse {
      map [ grep { $_ } split /\s+/, $_ ], @_;
 }
@@ -91,6 +92,9 @@ sub parse {
 sub parse_p2 {
     aref map [ grep { $_ } split //, $_ ], @_;
 }
+
+say join "\n", map { join "", $_->@* } dref transpose parse_p2 @test_input;
+exit 0;
 
 say List::Util::sum dref 
     compute_all split_at_empty_column transpose
