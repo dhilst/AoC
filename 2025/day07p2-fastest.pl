@@ -114,13 +114,12 @@ sub print_row {
 }
 
 sub step {
-    my ($self, $row, $col, $split) = @_;
+    my ($self, $row, $col) = @_;
     my $value = $self->get($row, $col);
     my %out;
     if ($value eq ".") {
         $out{$col}++;
     } elsif ($value eq "^") {
-        $$split += 1;
         my $max_col = $self->{max_col};
         $out{$_}++ for grep { 0 <= $_ && $_ <= $max_col } $col - 1, $col + 1;
     }
@@ -142,21 +141,22 @@ sub dump_href {
 sub step_row {
     my $self = shift;
     my $row = shift;
-    my $split = shift;
     my $cols_href = shift;
     my $max_col = $self->{max_col};
     
     # say "next ", dump_href($cols_href);
-    my %out;
     for my $col (sort { $a <=> $b } keys $cols_href->%*) {
         my $value = $self->get($row, $col);
         if ($value eq ".") {
-            $out{$col} += exists $cols_href->{$col} ? $cols_href->{$col} : 1;
+            # nothing to do, just preserve the column value
             next;
         } elsif ($value eq "^") {
-            $$split += $cols_href->{$col};
+            # now the ray is split and the current colum is set to 0
+            # because it is protected by the ^
             # say "SPLIT! = $$split at ($row x $col) (count $cols_href->{$col})";
-            $out{$_} +=  $cols_href->{$_} // 0 + exists $cols_href->{$col} ? $cols_href->{$col} : 1
+            my $val = $cols_href->{$col} // 0;
+            delete $cols_href->{$col};
+            $cols_href->{$_} += $val
                 for grep { 0 <= $_ && $_ <= $max_col } $col - 1, $col + 1;
             next;
         } elsif ($value eq "|" || $value =~ /\d+/) {
@@ -165,20 +165,18 @@ sub step_row {
         ::confess "invalid cell $value";
     }
     # say "rslt ", dump_href(\%out);
-
-    \%out;
+    undef;
 }
 
 sub play {
     my ($self) = @_;
     my $start = $self->find_all(0, "S");
-    my $split = 1;
     $self->print_row(0);
-    my $cols_href = $self->step(1, $start, \$split);
+    my $cols_href = $self->step(1, $start);
     $self->set(1, $_, '1') for keys $cols_href->%*;
     $self->print_row(1);
     for (my $row = 2; $row < $self->{max_row}; $row += 1) {
-        $cols_href = $self->step_row($row, \$split, $cols_href);
+        $self->step_row($row, $cols_href);
         $self->set($row, $_, $cols_href->{$_}) for keys $cols_href->%*;
         $self->print_row($row);
     }

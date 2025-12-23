@@ -63,7 +63,7 @@ sub stringify_row {
     ::confess "invalid row $row"
         unless 0 <= $row && $row < $self->{max_row};
 
-    return (map colorfy, $self->{data}->[$row]->@*), RESET;
+    return map colorfy, $self->{data}->[$row]->@*;
 }
 
 sub _valid_row_col {
@@ -82,6 +82,7 @@ sub get {
 
 sub set {
     my ($self, $row, $col, $value) = @_;
+    ::confess "invalid value $value" unless defined $value;
     return unless $self->_valid_row_col($row, $col);
     $self->{data}->[$row]->[$col] = $value;
 }
@@ -108,7 +109,6 @@ sub print {
 }
 
 sub print_row {
-    return if $ENV{NO_PRINT};
     my ($self, $row) = @_;
     say $self->stringify_row($row);
 }
@@ -142,48 +142,47 @@ sub dump_href {
 sub step_row {
     my $self = shift;
     my $row = shift;
-    my $split = shift;
-    my $cols_href = shift;
+    my $prev = shift;
     my $max_col = $self->{max_col};
     
     # say "next ", dump_href($cols_href);
-    my %out;
-    for my $col (sort { $a <=> $b } keys $cols_href->%*) {
-        my $value = $self->get($row, $col);
+    my @next;
+    for my $col ($prev->@*) {
+        my $value = $self->get($row, $col) // "UNDEF";
         if ($value eq ".") {
-            $out{$col} += exists $cols_href->{$col} ? $cols_href->{$col} : 1;
+            push @next, $col;
             next;
         } elsif ($value eq "^") {
-            $$split += $cols_href->{$col};
             # say "SPLIT! = $$split at ($row x $col) (count $cols_href->{$col})";
-            $out{$_} +=  $cols_href->{$_} // 0 + exists $cols_href->{$col} ? $cols_href->{$col} : 1
+            push @next, $_
                 for grep { 0 <= $_ && $_ <= $max_col } $col - 1, $col + 1;
             next;
         } elsif ($value eq "|" || $value =~ /\d+/) {
             die "never happen";
         }
-        ::confess "invalid cell $value";
+        ::confess "invalid cell $value $row $col";
     }
     # say "rslt ", dump_href(\%out);
 
-    \%out;
+    \@next;
 }
 
 sub play {
     my ($self) = @_;
     my $start = $self->find_all(0, "S");
-    my $split = 1;
     $self->print_row(0);
-    my $cols_href = $self->step(1, $start, \$split);
-    $self->set(1, $_, '1') for keys $cols_href->%*;
+    my $next = [ keys $self->step(1, $start)->%* ];
+    $self->set(1, $_, '1') for $next->@*;
     $self->print_row(1);
     for (my $row = 2; $row < $self->{max_row}; $row += 1) {
-        $cols_href = $self->step_row($row, \$split, $cols_href);
-        $self->set($row, $_, $cols_href->{$_}) for keys $cols_href->%*;
+        $next = $self->step_row($row, $next);
+        my %count;
+        $count{$_}++ for $next->@*;
+        $self->set($row, $_, $count{$_}) for $next->@*;
         $self->print_row($row);
     }
 
-    List::Util::sum values $cols_href->%*;
+    List::Util::sum values $next->@*;
 }
 package main;
 
@@ -209,6 +208,7 @@ my @test_input = split /\n/, <<"EOF";
 EOF
 
 my $test_input = Input->new(@test_input);
+$test_input->print;
 say $test_input->play;
 
 
