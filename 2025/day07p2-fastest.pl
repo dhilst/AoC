@@ -9,6 +9,7 @@ use Data::Dumper;
 use Carp;
 use File::Slurper qw(read_lines);
 use List::Util;
+use Time::HiRes qw(sleep);
 
 sub aref { \@_; }
 sub dref { $_[0]->@*; }
@@ -179,6 +180,7 @@ sub play {
         $self->step_row($row, $cols_href);
         $self->set($row, $_, $cols_href->{$_}) for keys $cols_href->%*;
         $self->print_row($row);
+        # ::sleep 0.3;
     }
 
     List::Util::sum values $cols_href->%*;
