@@ -412,8 +412,8 @@ say $tinput;
 
 sub find_loop($input, $row, $col) {
     my $pos = Pos->new($row, $col, $input->{max_row}, $input->{max_col});
-    my $copy = $input->reset_at($input->{pos}, $input->get_current);
     return 0 if $input->get_by_pos($pos) ne ".";
+    my $copy = $input->reset_at($input->{pos}, $input->get_current);
     $copy->put_box_at($row, $col);
 
     my $max_steps = $ENV{MAX_STEPS} // 10_000;
